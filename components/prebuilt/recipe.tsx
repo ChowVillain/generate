@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Users, ChevronDown, ChevronUp, Share2, Heart, Printer, Bookmark } from "lucide-react";
+import { Clock, Users, Heart, Share2, Bookmark, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,22 +16,13 @@ import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-export interface Ingredient {
+export interface RecipeIngredient {
   name: string;
-  amount: string;
-  unit?: string;
+  amount: number;
+  unit: string;
 }
 
-export interface NutritionInfo {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number;
-  sugar?: number;
-}
-
-export interface CookingStep {
+export interface RecipeStep {
   step: number;
   description: string;
 }
@@ -39,21 +30,25 @@ export interface CookingStep {
 export interface RecipeProps {
   title: string;
   description: string;
-  prepTime: number; // 准备时间（分钟）
-  cookTime: number; // 烹饪时间（分钟）
-  servings: number; // 份数
-  difficulty: "简单" | "中等" | "困难";
-  ingredients: Ingredient[];
-  steps: CookingStep[];
-  nutrition: NutritionInfo;
-  tags?: string[];
-  imageUrl?: string;
+  imageUrl: string;
+  ingredients: RecipeIngredient[];
+  calories: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  protein: number;
+  sugar: number;
+  prepTime: number;
+  cookTime: number;
+  servings: number;
+  steps: RecipeStep[];
+  tags: string[];
 }
 
 export function RecipeLoading() {
   return (
-    <Card className="w-[700px] overflow-hidden shadow-lg border-slate-200 dark:border-slate-700">
-      <div className="h-[250px] bg-slate-200 dark:bg-slate-800 relative">
+    <Card className="w-[800px] max-w-[95vw] overflow-hidden shadow-xl border-slate-200/50 dark:border-slate-700/50 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md">
+      <div className="h-[300px] bg-slate-200 dark:bg-slate-800 relative">
         <Skeleton className="h-full w-full" />
       </div>
       <CardHeader className="pb-3">
@@ -91,7 +86,7 @@ export function RecipeLoading() {
           </TabsList>
           <TabsContent value="ingredients" className="space-y-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={`ingredient-${i}`} className="flex justify-between">
+              <div key={`ingredient-${i}`} className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                 <Skeleton className="h-[18px] w-[200px]" />
                 <Skeleton className="h-[18px] w-[80px]" />
               </div>
@@ -113,7 +108,7 @@ export function RecipeLoading() {
           <TabsContent value="nutrition" className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={`nutrition-${i}`} className="flex justify-between border-b pb-2">
+                <div key={`nutrition-${i}`} className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                   <Skeleton className="h-[18px] w-[100px]" />
                   <Skeleton className="h-[18px] w-[60px]" />
                 </div>
@@ -122,135 +117,99 @@ export function RecipeLoading() {
           </TabsContent>
         </Tabs>
       </CardContent>
-      <CardFooter className="flex justify-between border-t pt-4">
+      <CardFooter className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-4">
         <div className="flex gap-2">
-          <Skeleton className="h-[36px] w-[36px] rounded-md" />
-          <Skeleton className="h-[36px] w-[36px] rounded-md" />
-          <Skeleton className="h-[36px] w-[36px] rounded-md" />
+          <Skeleton className="h-[36px] w-[80px] rounded-lg" />
+          <Skeleton className="h-[36px] w-[80px] rounded-lg" />
         </div>
-        <Skeleton className="h-[36px] w-[100px] rounded-md" />
+        <Skeleton className="h-[36px] w-[120px] rounded-lg" />
       </CardFooter>
     </Card>
   );
 }
 
 export function Recipe(props: RecipeProps) {
-  const [isLiked, setIsLiked] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [showAllIngredients, setShowAllIngredients] = useState(false);
   
   const totalTime = props.prepTime + props.cookTime;
-  const displayedIngredients = showAllIngredients 
-    ? props.ingredients 
-    : props.ingredients.slice(0, 6);
   
-  const handlePrint = () => {
-    window.print();
-  };
+  // 对步骤进行排序，确保按正确顺序显示
+  const sortedSteps = [...props.steps].sort((a, b) => a.step - b.step);
   
-  const handleShare = async () => {
-    try {
-      await navigator.share({
-        title: props.title,
-        text: props.description,
-        url: window.location.href,
-      });
-    } catch (error) {
-      console.log('分享失败:', error);
-      await navigator.clipboard.writeText(`${props.title}: ${props.description}`);
-      alert('已复制到剪贴板');
-    }
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch(difficulty) {
-      case "简单": return "text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400";
-      case "中等": return "text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400";
-      case "困难": return "text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400";
-      default: return "text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-400";
-    }
-  };
-
   return (
-    <Card className="w-[700px] overflow-hidden shadow-lg border-slate-200 dark:border-slate-700 rounded-xl">
-      {props.imageUrl ? (
-        <div className="h-[250px] relative overflow-hidden">
-          <img 
-            src={props.imageUrl} 
-            alt={props.title} 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+    <Card className="w-[800px] max-w-[95vw] overflow-hidden shadow-xl border-slate-200/50 dark:border-slate-700/50 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md">
+      <div className="h-[300px] relative overflow-hidden">
+        <img 
+          src={props.imageUrl} 
+          alt={props.title} 
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // 图片加载失败时使用默认图片
+            e.currentTarget.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1000";
+          }}
+        />
+        <div className="absolute top-4 right-4 flex gap-2">
+          {props.tags.map((tag, index) => (
+            <span 
+              key={index} 
+              className="px-3 py-1 bg-white/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 rounded-full text-sm font-medium backdrop-blur-sm"
+            >
+              {tag}
+            </span>
+          ))}
         </div>
-      ) : (
-        <div className="h-[100px] bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30"></div>
-      )}
-      
+      </div>
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-2xl font-bold text-slate-800 dark:text-slate-100">{props.title}</CardTitle>
-            <CardDescription className="text-slate-600 dark:text-slate-400 mt-1">{props.description}</CardDescription>
+            <CardTitle className="text-2xl font-bold text-slate-800 dark:text-slate-200">
+              {props.title}
+            </CardTitle>
+            <CardDescription className="text-base mt-1 text-slate-600 dark:text-slate-400">
+              {props.description}
+            </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className={cn(
-                "rounded-full transition-colors",
-                isLiked ? "text-red-500 border-red-200 hover:text-red-600 hover:border-red-300 dark:border-red-800" : ""
+                "h-10 w-10 rounded-full transition-colors",
+                isFavorite ? "bg-red-100 text-red-500 border-red-200 dark:bg-red-900/30 dark:border-red-800" : ""
               )}
-              onClick={() => setIsLiked(!isLiked)}
+              onClick={() => setIsFavorite(!isFavorite)}
             >
-              <Heart className={cn("h-5 w-5", isLiked ? "fill-red-500" : "")} />
+              <Heart className={cn("h-5 w-5", isFavorite ? "fill-red-500" : "")} />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className={cn(
-                "rounded-full transition-colors",
-                isSaved ? "text-amber-500 border-amber-200 hover:text-amber-600 hover:border-amber-300 dark:border-amber-800" : ""
+                "h-10 w-10 rounded-full transition-colors",
+                isSaved ? "bg-blue-100 text-blue-500 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800" : ""
               )}
               onClick={() => setIsSaved(!isSaved)}
             >
-              <Bookmark className={cn("h-5 w-5", isSaved ? "fill-amber-500" : "")} />
+              <Bookmark className={cn("h-5 w-5", isSaved ? "fill-blue-500" : "")} />
             </Button>
           </div>
         </div>
-        
-        <div className="flex flex-wrap gap-6 mt-4">
-          <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+        <div className="flex gap-6 mt-4">
+          <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-slate-500" />
-            <span>{totalTime} 分钟</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">{totalTime} 分钟</span>
           </div>
-          <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+          <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-slate-500" />
-            <span>{props.servings} 份</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">{props.servings} 份</span>
           </div>
-          <div className={cn(
-            "px-2 py-0.5 rounded-full text-sm font-medium",
-            getDifficultyColor(props.difficulty)
-          )}>
-            {props.difficulty}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-600 dark:text-slate-400">{props.calories} 卡路里</span>
           </div>
         </div>
-        
-        {props.tags && props.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {props.tags.map((tag, index) => (
-              <span 
-                key={`tag-${index}`}
-                className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
       </CardHeader>
-      
       <Separator />
-      
       <CardContent className="pt-6">
         <Tabs defaultValue="ingredients">
           <TabsList className="mb-4">
@@ -258,107 +217,69 @@ export function Recipe(props: RecipeProps) {
             <TabsTrigger value="instructions">步骤</TabsTrigger>
             <TabsTrigger value="nutrition">营养信息</TabsTrigger>
           </TabsList>
-          
           <TabsContent value="ingredients" className="space-y-4">
-            {displayedIngredients.map((ingredient, index) => (
-              <div key={`ingredient-${index}`} className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-800 dark:text-slate-200">{ingredient.name}</span>
-                <span className="text-slate-600 dark:text-slate-400">
-                  {ingredient.amount} {ingredient.unit || ''}
-                </span>
+            {props.ingredients.map((ingredient, index) => (
+              <div key={index} className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="font-medium text-slate-800 dark:text-slate-200">{ingredient.name}</span>
+                <span className="text-slate-600 dark:text-slate-400">{ingredient.amount} {ingredient.unit}</span>
               </div>
             ))}
-            
-            {props.ingredients.length > 6 && (
-              <Button 
-                variant="ghost" 
-                className="w-full mt-2 text-slate-600 dark:text-slate-400"
-                onClick={() => setShowAllIngredients(!showAllIngredients)}
-              >
-                {showAllIngredients ? (
-                  <>
-                    <ChevronUp className="mr-2 h-4 w-4" />
-                    收起
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="mr-2 h-4 w-4" />
-                    显示全部 ({props.ingredients.length}) 种食材
-                  </>
-                )}
-              </Button>
-            )}
           </TabsContent>
-          
           <TabsContent value="instructions" className="space-y-6">
-            {props.steps.map((step) => (
-              <div key={`step-${step.step}`} className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-800 dark:text-amber-300 font-medium">
-                  {step.step}
+            {sortedSteps.map((step, index) => (
+              <div key={index} className="flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">{step.step}</span>
                 </div>
-                <div className="flex-1 text-slate-700 dark:text-slate-300">
-                  {step.description}
+                <div className="flex-1">
+                  <p className="text-slate-700 dark:text-slate-300">{step.description}</p>
                 </div>
               </div>
             ))}
           </TabsContent>
-          
           <TabsContent value="nutrition" className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-700 dark:text-slate-300">热量</span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">{props.nutrition.calories} 千卡</span>
+                <span className="text-slate-600 dark:text-slate-400">蛋白质</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{props.protein}g</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-700 dark:text-slate-300">蛋白质</span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">{props.nutrition.protein}g</span>
+                <span className="text-slate-600 dark:text-slate-400">碳水化合物</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{props.carbs}g</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-700 dark:text-slate-300">碳水化合物</span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">{props.nutrition.carbs}g</span>
+                <span className="text-slate-600 dark:text-slate-400">脂肪</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{props.fat}g</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-slate-700 dark:text-slate-300">脂肪</span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">{props.nutrition.fat}g</span>
+                <span className="text-slate-600 dark:text-slate-400">纤维</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{props.fiber}g</span>
               </div>
-              {props.nutrition.fiber !== undefined && (
-                <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span className="text-slate-700 dark:text-slate-300">膳食纤维</span>
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{props.nutrition.fiber}g</span>
-                </div>
-              )}
-              {props.nutrition.sugar !== undefined && (
-                <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span className="text-slate-700 dark:text-slate-300">糖</span>
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{props.nutrition.sugar}g</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
-              <div className="text-sm text-amber-800 dark:text-amber-300">
-                <p className="mb-2 font-medium">营养小贴士</p>
-                <p>每份食谱提供约 {Math.round(props.nutrition.calories / props.servings)} 千卡热量，占成人每日推荐摄入量的 {Math.round((props.nutrition.calories / props.servings / 2000) * 100)}%。</p>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="text-slate-600 dark:text-slate-400">糖</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{props.sugar}g</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="text-slate-600 dark:text-slate-400">卡路里</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">{props.calories}kcal</span>
               </div>
             </div>
           </TabsContent>
         </Tabs>
       </CardContent>
-      
-      <CardFooter className="flex justify-between border-t pt-4">
+      <CardFooter className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-4">
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={handleShare}>
-            <Share2 className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="rounded-lg">
+            <Share2 className="h-4 w-4 mr-2" />
+            分享
           </Button>
-          <Button variant="outline" size="icon" onClick={handlePrint}>
-            <Printer className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="rounded-lg">
+            打印
           </Button>
         </div>
-        <Button 
-          variant="default" 
-          className="bg-amber-600 hover:bg-amber-700 text-white"
-        >
+        <Button className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600">
           开始烹饪
+          <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
       </CardFooter>
     </Card>

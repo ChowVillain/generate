@@ -4,133 +4,78 @@ import { CUSTOM_UI_YIELD_NAME } from "@/utils/server";
 import { Recipe, RecipeLoading } from "@/components/prebuilt/recipe";
 import { dispatchCustomEvent } from "@langchain/core/callbacks/dispatch/web";
 
+// 定义食材的schema
 const ingredientSchema = z.object({
   name: z.string().describe("食材名称"),
-  amount: z.string().describe("食材数量"),
-  unit: z.string().optional().describe("计量单位（如克、勺等）"),
+  amount: z.number().describe("食材数量"),
+  unit: z.string().describe("食材单位（如克、勺等）"),
 });
 
-const nutritionSchema = z.object({
-  calories: z.number().describe("热量（千卡）"),
-  protein: z.number().describe("蛋白质（克）"),
-  carbs: z.number().describe("碳水化合物（克）"),
-  fat: z.number().describe("脂肪（克）"),
-  fiber: z.number().optional().describe("膳食纤维（克）"),
-  sugar: z.number().optional().describe("糖（克）"),
-});
-
-const cookingStepSchema = z.object({
+// 定义烹饪步骤的schema
+const stepSchema = z.object({
   step: z.number().describe("步骤序号"),
   description: z.string().describe("步骤描述"),
 });
 
-const recipeToolSchema = z.object({
+// 定义食谱的schema
+const recipeSchema = z.object({
   title: z.string().describe("食谱标题"),
-  description: z.string().describe("食谱简短描述"),
-  prepTime: z.number().describe("准备时间（分钟）"),
-  cookTime: z.number().describe("烹饪时间（分钟）"),
-  servings: z.number().describe("份数"),
-  difficulty: z.enum(["简单", "中等", "困难"]).describe("难度级别"),
+  description: z.string().describe("食谱描述"),
+  imageUrl: z.string().url().describe("食谱图片URL"),
   ingredients: z.array(ingredientSchema).describe("食材列表"),
-  steps: z.array(cookingStepSchema).describe("烹饪步骤"),
-  nutrition: nutritionSchema.describe("营养信息"),
-  tags: z.array(z.string()).optional().describe("标签（如素食、低脂等）"),
-  imageUrl: z.string().optional().describe("食谱图片标识（可选，如不提供将根据食谱类型自动选择默认图片）"),
+  calories: z.number().describe("卡路里"),
+  carbs: z.number().describe("碳水化合物(克)"),
+  fat: z.number().describe("脂肪(克)"),
+  fiber: z.number().describe("纤维(克)"),
+  protein: z.number().describe("蛋白质(克)"),
+  sugar: z.number().describe("糖(克)"),
+  prepTime: z.number().describe("准备时间(分钟)"),
+  cookTime: z.number().describe("烹饪时间(分钟)"),
+  servings: z.number().describe("份量"),
+  steps: z.array(stepSchema).describe("烹饪步骤"),
+  tags: z.array(z.string()).describe("标签，如'低脂'、'素食'等"),
 });
 
-async function processRecipeData(input: z.infer<typeof recipeToolSchema>) {
-  // 这里可以添加实际的数据处理逻辑，例如保存到数据库
-  let processedInput = { ...input };
-  
-  // 定义默认图片 - 使用本地图片路径
-  const defaultImages = {
-    '沙拉': '/pic/salad.jpg',
-    '汤': '/pic/soup.jpg',
-    '肉类': '/pic/meat.jpg',
-    '甜点': '/pic/dessert.jpg',
-    '默认': '/pic/default.jpg'
-  };
-  
-  // 图片选择函数
-  const selectImageByKeywords = (keywords: string[], imageMap: Record<string, string>): string => {
-    const defaultImage = imageMap['默认'];
-    
-    for (const keyword of keywords) {
-      const lowerKeyword = keyword.toLowerCase();
-      for (const [key, url] of Object.entries(imageMap)) {
-        if (lowerKeyword.includes(key.toLowerCase())) {
-          return url;
-        }
-      }
-    }
-    
-    return defaultImage;
-  };
-  
-  // 处理图片 - 始终使用本地图片
-  // 即使提供了http开头的URL，也忽略它并使用本地图片
-  if (processedInput.imageUrl) {
-    // 检查是否直接匹配默认图片中的键
-    if (processedInput.imageUrl in defaultImages) {
-      processedInput.imageUrl = defaultImages[processedInput.imageUrl as keyof typeof defaultImages];
-    } else {
-      // 收集所有可能的关键词
-      const keywords = [processedInput.title];
-      if (processedInput.tags && processedInput.tags.length > 0) {
-        keywords.push(...processedInput.tags);
-      }
-      
-      processedInput.imageUrl = selectImageByKeywords(keywords, defaultImages);
-    }
-  } else {
-    // 如果没有提供imageUrl，根据标题和标签自动选择
-    const keywords = [processedInput.title];
-    if (processedInput.tags && processedInput.tags.length > 0) {
-      keywords.push(...processedInput.tags);
-    }
-    
-    processedInput.imageUrl = selectImageByKeywords(keywords, defaultImages);
-  }
-  
-  return {
-    ...processedInput,
-    // 确保步骤序号是连续的
-    steps: processedInput.steps.map((step, index) => ({
-      ...step,
-      step: index + 1,
-    })),
-  };
-}
+// 导出类型定义
+export type RecipeData = z.infer<typeof recipeSchema>;
 
 export const recipeTool = tool(
-  async (input, config) => {
-    await dispatchCustomEvent(
-      CUSTOM_UI_YIELD_NAME,
-      {
-        output: {
-          value: <RecipeLoading />,
-          type: "append",
+  async (input: RecipeData, config) => {
+    try {
+      // 显示加载状态
+      await dispatchCustomEvent(
+        CUSTOM_UI_YIELD_NAME,
+        {
+          output: {
+            value: <RecipeLoading />,
+            type: "append",
+          },
         },
-      },
-      config,
-    );
-    const result = await processRecipeData(input);
-    await dispatchCustomEvent(
-      CUSTOM_UI_YIELD_NAME,
-      {
-        output: {
-          value: <Recipe {...result} />,
-          type: "update",
+        config,
+      );
+
+      // 更新UI显示处理后的数据
+      await dispatchCustomEvent(
+        CUSTOM_UI_YIELD_NAME,
+        {
+          output: {
+            value: <Recipe {...input} />,
+            type: "update",
+          },
         },
-      },
-      config,
-    );
-    return JSON.stringify(result, null, 2);
+        config,
+      );
+
+      // 返回JSON格式的成功消息，而不是纯文本
+      return JSON.stringify({ status: "success", message: "食谱信息已成功生成并显示。" });
+    } catch (error) {
+      console.error("食谱处理失败:", error);
+      throw new Error(`食谱处理失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
   },
   {
-    name: "recipe_display",
-    description:
-      "一个展示营养食谱的工具。提供食谱标题、描述、准备和烹饪时间、食材列表、烹饪步骤和营养信息等，将返回格式化的食谱卡片。",
-    schema: recipeToolSchema,
+    name: "recipe",
+    description: "生成健康食谱的工具，包括标题、描述、食材、营养信息和烹饪步骤。适用于用户询问健康饮食、减肥食谱、增肌餐等场景。",
+    schema: recipeSchema,
   },
 );

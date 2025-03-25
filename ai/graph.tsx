@@ -117,9 +117,19 @@ const invokeTools = async (
     config,
   );
   return {
-    toolResult: JSON.parse(toolResult),
+    toolResult: tryParseJSON(toolResult),
   };
 };
+
+// 添加一个辅助函数来尝试解析JSON，如果失败则返回原始字符串
+function tryParseJSON(str: string) {
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    // 如果解析失败，返回包含原始字符串的对象
+    return { message: str };
+  }
+}
 
 export function agentExecutor() {
   const workflow = new StateGraph<AgentExecutorState>({
